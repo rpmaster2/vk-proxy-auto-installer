@@ -37,7 +37,7 @@ if [[ -f /root/.vk-proxy-version ]]; then CURRENT_VERSION=$(cat /root/.vk-proxy-
 while true; do
     clear
     echo "========================================="
-    echo -e "${CYAN}      VK TURN Proxy Manager v2.1${NC}     "
+    echo -e "${CYAN}      VK TURN Proxy Manager v1.0${NC}     "
     echo "========================================="
     if systemctl is-active --quiet vk-proxy; then echo -e "Статус прокси: ${GREEN}Активен (Работает)${NC}"; else echo -e "Статус прокси: ${RED}Остановлен${NC}"; fi
     echo -e "Текущая версия: ${YELLOW}${CURRENT_VERSION}${NC}"
