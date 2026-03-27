@@ -20,7 +20,7 @@
 ```bash
 bash <(curl -sL https://raw.githubusercontent.com/NedgNDG/vk-proxy-auto-installer/main/install.sh)
 ```
-Для установки конкретной версии используйте команду ниже (вместо v1.0 прописывайте номер конкретной версии)
+Для установки конкретной версии используйте команду ниже (вместо v1.0 прописывайте номер конкретной версии):
 
 ```bash
 bash <(curl -sL https://raw.githubusercontent.com/NedgNDG/vk-proxy-auto-installer/v1.0/install.sh)
