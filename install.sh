@@ -49,6 +49,11 @@ if [[ -f /root/.vk-proxy-repo ]]; then
         fi
         echo "$PROXY_REPO" > /root/.vk-proxy-repo
     fi
+    # Миграция alexmac6574 -> alxmcp
+    if [[ "$PROXY_REPO" == "alexmac6574/vk-turn-proxy" ]]; then
+        PROXY_REPO="alxmcp/vk-turn-proxy"
+        echo "$PROXY_REPO" > /root/.vk-proxy-repo
+    fi
 else 
     PROXY_REPO="cacggghp/vk-turn-proxy"
 fi
@@ -69,27 +74,58 @@ get_download_url() {
 
 while true; do
     clear
-    echo "========================================="
-    echo -e "${CYAN}      VK TURN Proxy Manager v1.4${NC}     "
-    echo "========================================="
-    if systemctl is-active --quiet vk-proxy; then echo -e "Статус прокси: ${GREEN}Активен (Работает)${NC}"; else echo -e "Статус прокси: ${RED}Остановлен${NC}"; fi
-    echo -e "Текущая версия: ${YELLOW}${CURRENT_VERSION}${NC} [Реализация: ${CYAN}${PROXY_REPO}${NC}]"
-    echo "Данные для приложения (Peer): $PUBLIC_IP:$PROXY_PORT"
-    echo "Назначение трафика (Локально): 127.0.0.1:$TARGET_PORT"
-    echo "========================================="
-    echo "1.  🟢 Запустить прокси"
-    echo "2.  🔴 Остановить прокси"
-    echo "3.  🔄 Перезапустить"
-    echo "4.  📥 Обновить ядро прокси"
-    echo "5.  📊 Посмотреть логи"
-    echo "6.  ➕ Установка/Управление VPN (WG / AmneziaWG)"
-    echo "7.  📱 Показать QR-код существующего WG/AWG-клиента"
-    echo "8.  ⚙️ Обновить саму панель vk-panel"
-    echo "9.  🗑️ Полностью удалить vk-turn-proxy"
-    echo "10. 🔀 Сменить реализацию ядра"
-    echo "11. 🔌 Изменить порты (Внешний / Локальный)"
-    echo "0.  ❌ Выйти"
-    echo "========================================="
+    
+    # Статус службы
+    if systemctl is-active --quiet vk-proxy; then 
+        PROXY_STATE="${GREEN}Активен${NC}"
+    else 
+        PROXY_STATE="${RED}Остановлен${NC}"
+    fi
+
+    # Статус флага vless
+    if [[ -f /root/.vk-proxy-vless ]] && [[ "$(cat /root/.vk-proxy-vless)" == "1" ]]; then
+        VLESS_TEXT="${GREEN}Включен${NC}"
+    else
+        VLESS_TEXT="${RED}Выключен${NC}"
+    fi
+
+    # Статус режима (Авто/Кастом)
+    if [[ -f /root/.vk-proxy-custom-args ]] && [[ -n "$(cat /root/.vk-proxy-custom-args)" ]]; then
+        MODE_TEXT="${YELLOW}Кастомные аргументы (Raw)${NC}"
+    else
+        MODE_TEXT="${GREEN}Автоматический${NC}"
+    fi
+
+    echo "========================================================="
+    echo -e "${CYAN}               VK TURN Proxy Manager v1.5              ${NC}"
+    echo "========================================================="
+    echo -e "Статус:  ${PROXY_STATE}          | VLESS: ${VLESS_TEXT}"
+    echo -e "Версия:  ${YELLOW}${CURRENT_VERSION}${NC}           | Ядро:  ${CYAN}${PROXY_REPO}${NC}"
+    echo -e "Режим:   ${MODE_TEXT}"
+    echo -e "Внешний: ${PUBLIC_IP}:${PROXY_PORT} | Назначение: 127.0.0.1:${TARGET_PORT}"
+    echo "========================================================="
+    echo -e "${YELLOW}--- Управление Proxy ---${NC}"
+    echo "  1. 🟢 Запустить прокси"
+    echo "  2. 🔴 Остановить прокси"
+    echo "  3. 🔄 Перезапустить"
+    echo "  4. 📥 Обновить ядро"
+    echo "  5. 🔀 Сменить реализацию ядра"
+    echo "  6. 🗑️ Полностью удалить прокси"
+    echo ""
+    echo -e "${YELLOW}--- Настройки ---${NC}"
+    echo "  7. 🔌 Изменить порты (Внешний / Локальный)"
+    echo "  8. 🛡️ Включить/Выключить флаг '-vless'"
+    echo "  9. ✍️ Задать кастомные аргументы запуска (Raw command)"
+    echo ""
+    echo -e "${YELLOW}--- VPN и Клиенты ---${NC}"
+    echo " 10. ➕ Установка/Управление VPN (WG / AmneziaWG)"
+    echo " 11. 📱 Показать QR-код существующего клиента"
+    echo ""
+    echo -e "${YELLOW}--- Система ---${NC}"
+    echo " 12. 📊 Посмотреть логи"
+    echo " 13. ⚙️ Обновить панель"
+    echo "  0. ❌ Выйти"
+    echo "========================================================="
     read -p "Выбери действие: " choice
 
     API_URL="https://api.github.com/repos/${PROXY_REPO}/releases/latest"
@@ -97,7 +133,7 @@ while true; do
     case $choice in
         1) systemctl start vk-proxy; echo -e "${GREEN}Запущено!${NC}"; sleep 1 ;;
         2) systemctl stop vk-proxy; echo -e "${RED}Остановлено!${NC}"; sleep 1 ;;
-        3) if systemctl restart vk-proxy; then echo -e "${GREEN}Успешно перезапущено!${NC}"; else echo -e "${RED}Ошибка перезапуска! Проверьте логи (Пункт 5).${NC}"; fi; sleep 2 ;;
+        3) if systemctl restart vk-proxy; then echo -e "${GREEN}Успешно перезапущено!${NC}"; else echo -e "${RED}Ошибка перезапуска! Проверьте логи (Пункт 12).${NC}"; fi; sleep 2 ;;
         4)
             echo "Проверка обновлений через GitHub API ($PROXY_REPO)..."
             API_RESP=$(curl -s --connect-timeout 10 "$API_URL")
@@ -133,72 +169,7 @@ while true; do
                 fi
             fi
             read -n 1 -s -r -p "Нажми любую клавишу..." ;;
-        5) journalctl -u vk-proxy -n 20 --no-pager; read -n 1 -s -r -p "Нажми любую клавишу..." ;;
-        6) 
-            echo ""
-            echo -e "${CYAN}Управление и установка VPN:${NC}"
-            echo "1) WireGuard"
-            echo "2) AmneziaWG"
-            read -p "Выбери вариант: " vpn_manage_choice
-            if [[ "$vpn_manage_choice" == "1" ]]; then
-                if [ ! -f /root/wireguard-install.sh ]; then
-                    echo -e "${YELLOW}Установщик WireGuard не найден. Скачивание...${NC}"
-                    curl -sLo /root/wireguard-install.sh https://raw.githubusercontent.com/angristan/wireguard-install/master/wireguard-install.sh
-                    chmod +x /root/wireguard-install.sh
-                fi
-                bash /root/wireguard-install.sh
-            elif [[ "$vpn_manage_choice" == "2" ]]; then
-                if [ ! -f /root/amneziawg-install.sh ]; then
-                    echo -e "${YELLOW}Установщик AmneziaWG не найден. Скачивание...${NC}"
-                    curl -sLo /root/amneziawg-install.sh https://raw.githubusercontent.com/wiresock/amneziawg-install/main/amneziawg-install.sh
-                    chmod +x /root/amneziawg-install.sh
-                fi
-                bash /root/amneziawg-install.sh
-            else
-                echo -e "${RED}Неверный выбор.${NC}"
-            fi
-            read -n 1 -s -r -p "Нажми любую клавишу..." 
-            ;;
-        7)
-            echo ""
-            echo -e "${CYAN}Доступные конфигурации клиентов:${NC}"
-            shopt -s nullglob
-            CLIENT_CONFS=(/root/*.conf)
-            shopt -u nullglob
-
-            if [ ${#CLIENT_CONFS[@]} -eq 0 ]; then
-                echo -e "${RED}Файлы конфигурации клиентов (.conf) не найдены в /root/${NC}"
-            else
-                for i in "${!CLIENT_CONFS[@]}"; do
-                    echo "$((i+1)). $(basename "${CLIENT_CONFS[$i]}")"
-                done
-                echo ""
-                read -p "Выбери номер клиента для показа QR-кода: " qr_choice
-                if [[ "$qr_choice" -ge 1 && "$qr_choice" -le ${#CLIENT_CONFS[@]} ]]; then
-                    TARGET_CONF="${CLIENT_CONFS[$((qr_choice-1))]}"
-                    echo -e "${GREEN}QR-код для $(basename "$TARGET_CONF"):${NC}"
-                    qrencode -t ansiutf8 < "$TARGET_CONF"
-                else
-                    echo -e "${RED}Неверный выбор.${NC}"
-                fi
-            fi
-            read -n 1 -s -r -p "Нажми любую клавишу..." 
-            ;;
-        8)
-            echo -e "${YELLOW}Скачивание обновления панели...${NC}"
-            bash <(curl -sL --connect-timeout 10 "$INSTALLER_URL") --update-panel
-            echo -e "${GREEN}Панель обновлена! Перезапустите команду vk-panel.${NC}"
-            exit 0 ;;
-        9)
-            echo -e "${RED}ВНИМАНИЕ: Это удалит службу и бинарник прокси! Остальные VPN (WG, AmneziaWG, Xray, Hysteria) останутся нетронутыми.${NC}"
-            read -p "Вы АБСОЛЮТНО уверены? [y/N]: " confirm
-            if [[ "$confirm" =~ ^[Yy]$ ]]; then
-                systemctl stop vk-proxy; systemctl disable vk-proxy; rm -f /etc/systemd/system/vk-proxy.service; systemctl daemon-reload
-                if command -v ufw &> /dev/null; then ufw delete allow $PROXY_PORT/tcp >/dev/null 2>&1; ufw delete allow $PROXY_PORT/udp >/dev/null 2>&1; fi
-                rm -f /root/server-linux-$SYS_ARCH /root/.vk-proxy-version /usr/local/bin/vk-panel /root/.vk-proxy-repo /root/.vk-proxy-port /root/.vk-proxy-target-port
-                echo -e "${GREEN}Прокси успешно удален.${NC}"; exit 0
-            fi ;;
-        10)
+        5)
             echo -e "${YELLOW}======================================================${NC}"
             echo -e "${YELLOW}ВНИМАНИЕ: При смене реализации ваши текущие клиенты   ${NC}"
             echo -e "${YELLOW}могут перестать подключаться! Возможно, потребуется   ${NC}"
@@ -209,8 +180,8 @@ while true; do
             echo "1) cacggghp/vk-turn-proxy (Оригинал)"
             echo "2) kiper292/vk-turn-proxy (Поддержка WB Stream)"
             echo "3) Urtyom-Alyanov/turn-proxy (Ядро на Rust, только amd64/x86_64)"
-            echo "4) Moroka8/vk-turn-proxy (Поддержка VLESS, флаг -vless)"
-            echo "5) alexmac6574/vk-turn-proxy (Форк)"
+            echo "4) Moroka8/vk-turn-proxy (Форк, поддержка VLESS)"
+            echo "5) alxmcp/vk-turn-proxy (Форк)"
             echo "0) Отмена"
             read -p "Выберите новую реализацию [1-5 или 0]: " repo_choice
             
@@ -219,7 +190,7 @@ while true; do
                 2) NEW_REPO="kiper292/vk-turn-proxy" ;;
                 3) NEW_REPO="Urtyom-Alyanov/turn-proxy" ;;
                 4) NEW_REPO="Moroka8/vk-turn-proxy" ;;
-                5) NEW_REPO="alexmac6574/vk-turn-proxy" ;;
+                5) NEW_REPO="alxmcp/vk-turn-proxy" ;;
                 0) continue ;;
                 *) echo -e "${RED}Неверный выбор.${NC}"; sleep 1; continue ;;
             esac
@@ -248,13 +219,16 @@ while true; do
                             mv /tmp/server-linux-$SYS_ARCH /root/server-linux-$SYS_ARCH
                             chmod +x /root/server-linux-$SYS_ARCH
                             
-                            # Переписываем аргументы службы под новое ядро
-                            if [[ "$NEW_REPO" == *"Urtyom-Alyanov"* ]]; then
-                                EXEC_ARGS="-N -l 0.0.0.0:$PROXY_PORT -p 127.0.0.1:$TARGET_PORT -n 10000"
-                            elif [[ "$NEW_REPO" == *"Moroka8"* ]]; then
-                                EXEC_ARGS="-listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT -vless"
+                            # Генерация аргументов запуска (с учетом кастомных)
+                            if [[ -f /root/.vk-proxy-custom-args ]] && [[ -n "$(cat /root/.vk-proxy-custom-args)" ]]; then
+                                EXEC_ARGS=$(cat /root/.vk-proxy-custom-args)
                             else
-                                EXEC_ARGS="-listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT"
+                                if [[ -f /root/.vk-proxy-vless ]] && [[ "$(cat /root/.vk-proxy-vless)" == "1" ]]; then VLESS_FLAG=" -vless"; else VLESS_FLAG=""; fi
+                                if [[ "$NEW_REPO" == *"Urtyom-Alyanov"* ]]; then
+                                    EXEC_ARGS="-N -l 0.0.0.0:$PROXY_PORT -p 127.0.0.1:$TARGET_PORT -n 10000$VLESS_FLAG"
+                                else
+                                    EXEC_ARGS="-listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT$VLESS_FLAG"
+                                fi
                             fi
 
 cat <<EOF_SVC > /etc/systemd/system/vk-proxy.service
@@ -290,8 +264,23 @@ EOF_SVC
             fi
             read -n 1 -s -r -p "Нажми любую клавишу..."
             ;;
-        11)
+        6)
+            echo -e "${RED}ВНИМАНИЕ: Это удалит службу и бинарник прокси! Остальные VPN (WG, AmneziaWG, Xray, Hysteria) останутся нетронутыми.${NC}"
+            read -p "Вы АБСОЛЮТНО уверены? [y/N]: " confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                systemctl stop vk-proxy; systemctl disable vk-proxy; rm -f /etc/systemd/system/vk-proxy.service; systemctl daemon-reload
+                if command -v ufw &> /dev/null; then ufw delete allow $PROXY_PORT/tcp >/dev/null 2>&1; ufw delete allow $PROXY_PORT/udp >/dev/null 2>&1; fi
+                rm -f /root/server-linux-$SYS_ARCH /root/.vk-proxy-version /usr/local/bin/vk-panel /root/.vk-proxy-repo /root/.vk-proxy-port /root/.vk-proxy-target-port /root/.vk-proxy-vless /root/.vk-proxy-custom-args
+                echo -e "${GREEN}Прокси успешно удален.${NC}"; exit 0
+            fi ;;
+        7)
             echo ""
+            if [[ -f /root/.vk-proxy-custom-args ]] && [[ -n "$(cat /root/.vk-proxy-custom-args)" ]]; then
+                echo -e "${YELLOW}⚠️ ВНИМАНИЕ: У вас активны кастомные аргументы запуска!${NC}"
+                echo -e "Изменения портов сохранятся, но ${RED}НЕ ПРИМЕНЯТСЯ${NC} к службе, пока вы не сбросите кастомные настройки (пункт 9)."
+                echo ""
+            fi
+            
             echo -e "${CYAN}Изменение портов:${NC}"
             echo "1) Изменить внешний порт прокси (сейчас: $PROXY_PORT)"
             echo "2) Изменить локальный порт назначения (сейчас: $TARGET_PORT)"
@@ -369,12 +358,15 @@ EOF_SVC
             fi
 
             if [[ "$port_change_choice" == "1" || "$port_change_choice" == "2" ]]; then
-                if [[ "$PROXY_REPO" == *"Urtyom-Alyanov"* ]]; then
-                    EXEC_ARGS="-N -l 0.0.0.0:$PROXY_PORT -p 127.0.0.1:$TARGET_PORT -n 10000"
-                elif [[ "$PROXY_REPO" == *"Moroka8"* ]]; then
-                    EXEC_ARGS="-listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT -vless"
+                if [[ -f /root/.vk-proxy-custom-args ]] && [[ -n "$(cat /root/.vk-proxy-custom-args)" ]]; then
+                    EXEC_ARGS=$(cat /root/.vk-proxy-custom-args)
                 else
-                    EXEC_ARGS="-listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT"
+                    if [[ -f /root/.vk-proxy-vless ]] && [[ "$(cat /root/.vk-proxy-vless)" == "1" ]]; then VLESS_FLAG=" -vless"; else VLESS_FLAG=""; fi
+                    if [[ "$PROXY_REPO" == *"Urtyom-Alyanov"* ]]; then
+                        EXEC_ARGS="-N -l 0.0.0.0:$PROXY_PORT -p 127.0.0.1:$TARGET_PORT -n 10000$VLESS_FLAG"
+                    else
+                        EXEC_ARGS="-listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT$VLESS_FLAG"
+                    fi
                 fi
 
 cat <<EOF_SVC > /etc/systemd/system/vk-proxy.service
@@ -396,7 +388,7 @@ WantedBy=multi-user.target
 EOF_SVC
                 systemctl daemon-reload
                 if systemctl restart vk-proxy; then
-                    echo -e "${CYAN}Служба прокси успешно перезапущена с новыми портами!${NC}"
+                    echo -e "${CYAN}Служба прокси успешно перезапущена!${NC}"
                 else
                     echo -e "${RED}Ошибка перезапуска службы. Проверьте логи.${NC}"
                 fi
@@ -404,6 +396,168 @@ EOF_SVC
             
             read -n 1 -s -r -p "Нажми любую клавишу..."
             ;;
+        8)
+            if [[ -f /root/.vk-proxy-custom-args ]] && [[ -n "$(cat /root/.vk-proxy-custom-args)" ]]; then
+                echo -e "${YELLOW}⚠️ ВНИМАНИЕ: У вас активны кастомные аргументы запуска!${NC}"
+                echo -e "Флаг сохранится, но ${RED}НЕ ПРИМЕНИТСЯ${NC} к службе, пока вы не сбросите кастомные настройки (пункт 9)."
+                echo ""
+            fi
+
+            if [[ -f /root/.vk-proxy-vless ]] && [[ "$(cat /root/.vk-proxy-vless)" == "1" ]]; then
+                echo "0" > /root/.vk-proxy-vless
+                echo -e "${YELLOW}Флаг -vless будет отключен.${NC}"
+            else
+                echo "1" > /root/.vk-proxy-vless
+                echo -e "${GREEN}Флаг -vless будет добавлен.${NC}"
+            fi
+
+            if [[ -f /root/.vk-proxy-custom-args ]] && [[ -n "$(cat /root/.vk-proxy-custom-args)" ]]; then
+                EXEC_ARGS=$(cat /root/.vk-proxy-custom-args)
+            else
+                if [[ -f /root/.vk-proxy-vless ]] && [[ "$(cat /root/.vk-proxy-vless)" == "1" ]]; then VLESS_FLAG=" -vless"; else VLESS_FLAG=""; fi
+                if [[ "$PROXY_REPO" == *"Urtyom-Alyanov"* ]]; then
+                    EXEC_ARGS="-N -l 0.0.0.0:$PROXY_PORT -p 127.0.0.1:$TARGET_PORT -n 10000$VLESS_FLAG"
+                else
+                    EXEC_ARGS="-listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT$VLESS_FLAG"
+                fi
+            fi
+
+cat <<EOF_SVC > /etc/systemd/system/vk-proxy.service
+[Unit]
+Description=VK TURN Proxy Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root
+LimitNOFILE=1048576
+ExecStart=/root/server-linux-$SYS_ARCH $EXEC_ARGS
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF_SVC
+            systemctl daemon-reload
+            if systemctl is-active --quiet vk-proxy; then systemctl restart vk-proxy; fi
+            echo -e "${GREEN}Конфигурация обновлена и служба перезапущена!${NC}"
+            sleep 2
+            ;;
+        9)
+            echo ""
+            echo -e "${CYAN}Кастомные аргументы запуска (Raw command)${NC}"
+            echo -e "Внимание: если задать кастомные аргументы, настройки портов и флага -vless из панели (пункты 7 и 8) ${RED}будут игнорироваться${NC}!"
+            echo "Если меняешь внешний порт в этом режиме, не забудь открыть его в UFW вручную."
+            echo ""
+            echo -e "Текущие аргументы:"
+            if [[ -f /root/.vk-proxy-custom-args ]] && [[ -n "$(cat /root/.vk-proxy-custom-args)" ]]; then
+                echo -e "${YELLOW}$(cat /root/.vk-proxy-custom-args)${NC}"
+            else
+                echo -e "${GREEN}Не заданы (используется автоматический режим)${NC}"
+            fi
+            echo ""
+            echo "Введи новые аргументы (например: -listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT -vless)"
+            echo "Или просто нажми Enter, чтобы СБРОСИТЬ кастомные аргументы и вернуться к автоматике."
+            read -p "Аргументы: " input_custom
+            if [[ -z "$input_custom" ]]; then
+                rm -f /root/.vk-proxy-custom-args
+                echo -e "${GREEN}Сброшено на автоматический режим! Возвращаем стандартные флаги.${NC}"
+            else
+                echo "$input_custom" > /root/.vk-proxy-custom-args
+                echo -e "${GREEN}Кастомные аргументы сохранены!${NC}"
+            fi
+
+            # Применяем изменения
+            if [[ -f /root/.vk-proxy-custom-args ]] && [[ -n "$(cat /root/.vk-proxy-custom-args)" ]]; then
+                EXEC_ARGS=$(cat /root/.vk-proxy-custom-args)
+            else
+                if [[ -f /root/.vk-proxy-vless ]] && [[ "$(cat /root/.vk-proxy-vless)" == "1" ]]; then VLESS_FLAG=" -vless"; else VLESS_FLAG=""; fi
+                if [[ "$PROXY_REPO" == *"Urtyom-Alyanov"* ]]; then
+                    EXEC_ARGS="-N -l 0.0.0.0:$PROXY_PORT -p 127.0.0.1:$TARGET_PORT -n 10000$VLESS_FLAG"
+                else
+                    EXEC_ARGS="-listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT$VLESS_FLAG"
+                fi
+            fi
+
+cat <<EOF_SVC > /etc/systemd/system/vk-proxy.service
+[Unit]
+Description=VK TURN Proxy Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root
+LimitNOFILE=1048576
+ExecStart=/root/server-linux-$SYS_ARCH $EXEC_ARGS
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF_SVC
+            systemctl daemon-reload
+            if systemctl is-active --quiet vk-proxy; then systemctl restart vk-proxy; fi
+            echo -e "${GREEN}Служба перезапущена с новыми аргументами!${NC}"
+            read -n 1 -s -r -p "Нажми любую клавишу..."
+            ;;
+        10) 
+            echo ""
+            echo -e "${CYAN}Управление и установка VPN:${NC}"
+            echo "1) WireGuard"
+            echo "2) AmneziaWG"
+            read -p "Выбери вариант: " vpn_manage_choice
+            if [[ "$vpn_manage_choice" == "1" ]]; then
+                if [ ! -f /root/wireguard-install.sh ]; then
+                    echo -e "${YELLOW}Установщик WireGuard не найден. Скачивание...${NC}"
+                    curl -sLo /root/wireguard-install.sh https://raw.githubusercontent.com/angristan/wireguard-install/master/wireguard-install.sh
+                    chmod +x /root/wireguard-install.sh
+                fi
+                bash /root/wireguard-install.sh
+            elif [[ "$vpn_manage_choice" == "2" ]]; then
+                if [ ! -f /root/amneziawg-install.sh ]; then
+                    echo -e "${YELLOW}Установщик AmneziaWG не найден. Скачивание...${NC}"
+                    curl -sLo /root/amneziawg-install.sh https://raw.githubusercontent.com/wiresock/amneziawg-install/main/amneziawg-install.sh
+                    chmod +x /root/amneziawg-install.sh
+                fi
+                bash /root/amneziawg-install.sh
+            else
+                echo -e "${RED}Неверный выбор.${NC}"
+            fi
+            read -n 1 -s -r -p "Нажми любую клавишу..." 
+            ;;
+        11)
+            echo ""
+            echo -e "${CYAN}Доступные конфигурации клиентов:${NC}"
+            shopt -s nullglob
+            CLIENT_CONFS=(/root/*.conf)
+            shopt -u nullglob
+
+            if [ ${#CLIENT_CONFS[@]} -eq 0 ]; then
+                echo -e "${RED}Файлы конфигурации клиентов (.conf) не найдены в /root/${NC}"
+            else
+                for i in "${!CLIENT_CONFS[@]}"; do
+                    echo "$((i+1)). $(basename "${CLIENT_CONFS[$i]}")"
+                done
+                echo ""
+                read -p "Выбери номер клиента для показа QR-кода: " qr_choice
+                if [[ "$qr_choice" -ge 1 && "$qr_choice" -le ${#CLIENT_CONFS[@]} ]]; then
+                    TARGET_CONF="${CLIENT_CONFS[$((qr_choice-1))]}"
+                    echo -e "${GREEN}QR-код для $(basename "$TARGET_CONF"):${NC}"
+                    qrencode -t ansiutf8 < "$TARGET_CONF"
+                else
+                    echo -e "${RED}Неверный выбор.${NC}"
+                fi
+            fi
+            read -n 1 -s -r -p "Нажми любую клавишу..." 
+            ;;
+        12) journalctl -u vk-proxy -n 20 --no-pager; read -n 1 -s -r -p "Нажми любую клавишу..." ;;
+        13)
+            echo -e "${YELLOW}Скачивание обновления панели...${NC}"
+            bash <(curl -sL --connect-timeout 10 "$INSTALLER_URL") --update-panel
+            echo -e "${GREEN}Панель обновлена! Перезапустите команду vk-panel.${NC}"
+            exit 0 ;;
         0) clear; exit 0 ;;
         *) echo "Неверный выбор!"; sleep 1 ;;
     esac
@@ -426,7 +580,7 @@ echo "==================================================="
 echo ""
 
 # 1. Проверка зависимостей
-echo "[1/8] Установка зависимостей (curl, wget, jq, ufw, qrencode)..."
+echo "[1/9] Установка зависимостей (curl, wget, jq, ufw, qrencode)..."
 if command -v apt-get &> /dev/null; then
     apt-get update -y > /dev/null 2>&1
     apt-get install -y curl wget jq ufw qrencode > /dev/null 2>&1
@@ -441,19 +595,19 @@ if [[ "$ARCH" == "x86_64" ]]; then SYS_ARCH="amd64"; else SYS_ARCH="arm64"; fi
 
 # 3. Выбор реализации
 echo ""
-echo "[2/8] Выбор реализации vk-turn-proxy..."
+echo "[2/9] Выбор реализации vk-turn-proxy..."
 echo "1) cacggghp/vk-turn-proxy (Оригинал, по умолчанию)"
 echo "2) kiper292/vk-turn-proxy (Поддержка WB Stream)"
 echo "3) Urtyom-Alyanov/turn-proxy (Ядро на Rust, только amd64/x86_64)"
-echo "4) Moroka8/vk-turn-proxy (Поддержка VLESS, флаг -vless)"
-echo "5) alexmac6574/vk-turn-proxy (Форк)"
+echo "4) Moroka8/vk-turn-proxy (Форк с VLESS)"
+echo "5) alxmcp/vk-turn-proxy (Форк)"
 read -p "Твой выбор [1-5]: " repo_choice
 
 case "$repo_choice" in
   2) PROXY_REPO="kiper292/vk-turn-proxy" ;;
   3) PROXY_REPO="Urtyom-Alyanov/turn-proxy" ;;
   4) PROXY_REPO="Moroka8/vk-turn-proxy" ;;
-  5) PROXY_REPO="alexmac6574/vk-turn-proxy" ;;
+  5) PROXY_REPO="alxmcp/vk-turn-proxy" ;;
   *) PROXY_REPO="cacggghp/vk-turn-proxy" ;;
 esac
 
@@ -462,7 +616,7 @@ API_URL="https://api.github.com/repos/${PROXY_REPO}/releases/latest"
 
 # 4. Выбор порта прокси
 echo ""
-echo "[3/8] Настройка внешнего порта прокси (к нему будут подключаться клиенты через VK)..."
+echo "[3/9] Настройка внешнего порта прокси (к нему будут подключаться клиенты через VK)..."
 DEFAULT_PROXY_PORT=56000
 if [[ "$PROXY_REPO" == "Urtyom-Alyanov/turn-proxy" ]]; then
     DEFAULT_PROXY_PORT=56040
@@ -489,9 +643,20 @@ done
 echo "$PROXY_PORT" > /root/.vk-proxy-port
 echo "Выбран внешний порт: $PROXY_PORT"
 
+# Выбор использования флага -vless при установке
+echo ""
+echo "[4/9] Использовать флаг -vless?"
+echo "Некоторые клиенты (например, VLESS) и обновленные ядра могут использовать этот флаг, даёт возможность гнать трафик по этому протоколу."
+read -p "Включить флаг -vless по умолчанию? [y/N]: " use_vless
+if [[ "$use_vless" =~ ^[Yy]$ ]]; then
+    echo "1" > /root/.vk-proxy-vless
+else
+    echo "0" > /root/.vk-proxy-vless
+fi
+
 # 5. Выбор типа установки и настройка целевого локального порта
 echo ""
-echo "[4/8] Настройка локального порта (цель для прокси)..."
+echo "[5/9] Настройка локального порта (цель для прокси)..."
 echo "Куда прокси должен перенаправлять трафик?"
 echo "1) Установить WireGuard с нуля (автоматически установит и привяжет порт)"
 echo "2) Установить AmneziaWG с нуля (автоматически установит и привяжет порт)"
@@ -511,9 +676,8 @@ if [[ "$port_setup_choice" == "3" ]]; then
         TARGET_PORT=51820
     fi
 elif [[ "$port_setup_choice" == "2" ]]; then
-    # 6A. AmneziaWG: Проверка и установка
     echo ""
-    echo "[5/8] Установка и поиск порта AmneziaWG..."
+    echo "[6/9] Установка и поиск порта AmneziaWG..."
     shopt -s nullglob
     AWG_CONFS=(/etc/amneziawg/*.conf /etc/amnezia/amneziawg/*.conf)
     shopt -u nullglob
@@ -546,7 +710,6 @@ elif [[ "$port_setup_choice" == "2" ]]; then
         shopt -u nullglob
     fi
 
-    # Умный поиск порта из файлов AWG
     if [ ${#AWG_CONFS[@]} -eq 1 ]; then
         TARGET_PORT=$(grep -oP 'ListenPort\s*=\s*\K\d+' "${AWG_CONFS[0]}")
         echo "Автоматически выбран конфиг: ${AWG_CONFS[0]}"
@@ -566,9 +729,8 @@ elif [[ "$port_setup_choice" == "2" ]]; then
         echo "Порт определен: $TARGET_PORT"
     fi
 else
-    # 6B. WireGuard: Проверка и установка
     echo ""
-    echo "[5/8] Установка и поиск порта WireGuard..."
+    echo "[6/9] Установка и поиск порта WireGuard..."
     shopt -s nullglob
     WG_CONFS=(/etc/wireguard/*.conf)
     shopt -u nullglob
@@ -601,7 +763,6 @@ else
         shopt -u nullglob
     fi
 
-    # Умный поиск порта из файлов WG
     if [ ${#WG_CONFS[@]} -eq 1 ]; then
         TARGET_PORT=$(grep -oP 'ListenPort\s*=\s*\K\d+' "${WG_CONFS[0]}")
         echo "Автоматически выбран конфиг: ${WG_CONFS[0]}"
@@ -622,12 +783,12 @@ else
     fi
 fi
 
-# Сохраняем целевой порт для перегенерации службы в будущем
+# Сохраняем целевой порт
 echo "$TARGET_PORT" > /root/.vk-proxy-target-port
 
-# 7. Скачивание ядра
+# 6. Скачивание ядра
 echo ""
-echo "[6/8] Загрузка ядра ($SYS_ARCH) из репозитория $PROXY_REPO..."
+echo "[7/9] Загрузка ядра ($SYS_ARCH) из репозитория $PROXY_REPO..."
 API_RESP=$(curl -s --connect-timeout 10 "$API_URL")
 LATEST_TAG=$(echo "$API_RESP" | jq -r ".tag_name")
 DOWNLOAD_URL=""
@@ -640,11 +801,9 @@ fi
 
 if [[ "$DOWNLOAD_URL" == "null" || -z "$DOWNLOAD_URL" ]]; then
     echo "❌ Ошибка: В репозитории $PROXY_REPO не найдено релизов для $SYS_ARCH."
-    echo "Убедись, что автор форка опубликовал скомпилированные бинарники (Releases) на GitHub."
     exit 1
 fi
 
-# Сохраняем всегда под одним стандартным именем, чтобы не менять systemd
 if ! wget -q --show-progress -O /root/server-linux-$SYS_ARCH "$DOWNLOAD_URL"; then
     echo "❌ Ошибка: Не удалось скачать ядро прокси. Проверьте интернет или лимиты GitHub API."
     exit 1
@@ -652,18 +811,38 @@ fi
 chmod +x /root/server-linux-$SYS_ARCH
 echo "$LATEST_TAG" > /root/.vk-proxy-version
 
+
+# 7. Выбор кастомных аргументов запуска
+echo ""
+echo "[8/9] Аргументы запуска"
+echo "Обычно скрипт генерирует их автоматически на базе портов, но ты можешь задать команду вручную (Raw mode)."
+read -p "Хочешь прописать кастомные аргументы запуска? [y/N]: " use_custom_args
+if [[ "$use_custom_args" =~ ^[Yy]$ ]]; then
+    echo "Введи аргументы (например: -listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT -vless)"
+    read -p "Аргументы: " custom_args
+    if [[ -n "$custom_args" ]]; then
+        echo "$custom_args" > /root/.vk-proxy-custom-args
+        echo "Сохранены кастомные аргументы!"
+    fi
+fi
+
+
 # 8. Служба и Фаервол
 echo ""
-echo "[7/8] Настройка службы и фаервола..."
+echo "[9/9] Настройка службы и фаервола..."
 systemctl stop vk-proxy 2>/dev/null || true
 
-# Генерируем правильные аргументы в зависимости от ядра
-if [[ "$PROXY_REPO" == *"Urtyom-Alyanov"* ]]; then
-    EXEC_ARGS="-N -l 0.0.0.0:$PROXY_PORT -p 127.0.0.1:$TARGET_PORT -n 10000"
-elif [[ "$PROXY_REPO" == *"Moroka8"* ]]; then
-    EXEC_ARGS="-listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT -vless"
+# Формируем итоговые параметры для systemd
+if [[ -f /root/.vk-proxy-custom-args ]] && [[ -n "$(cat /root/.vk-proxy-custom-args)" ]]; then
+    EXEC_ARGS=$(cat /root/.vk-proxy-custom-args)
 else
-    EXEC_ARGS="-listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT"
+    if [[ -f /root/.vk-proxy-vless ]] && [[ "$(cat /root/.vk-proxy-vless)" == "1" ]]; then VLESS_FLAG=" -vless"; else VLESS_FLAG=""; fi
+
+    if [[ "$PROXY_REPO" == *"Urtyom-Alyanov"* ]]; then
+        EXEC_ARGS="-N -l 0.0.0.0:$PROXY_PORT -p 127.0.0.1:$TARGET_PORT -n 10000$VLESS_FLAG"
+    else
+        EXEC_ARGS="-listen 0.0.0.0:$PROXY_PORT -connect 127.0.0.1:$TARGET_PORT$VLESS_FLAG"
+    fi
 fi
 
 cat <<EOF > /etc/systemd/system/vk-proxy.service
@@ -696,7 +875,7 @@ fi
 
 # 9. Панель
 echo ""
-echo "[8/8] Создание консольной панели (vk-panel)..."
+echo "[+] Создание консольной панели (vk-panel)..."
 create_panel
 
 echo ""
