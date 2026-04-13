@@ -65,7 +65,9 @@ bash <(curl -sL https://raw.githubusercontent.com/NedgNDG/vk-proxy-auto-installe
 
 3. Сохраняем изменения и запускаем.
 
-Примечание: данные команды также должны подойти и для клиента на пк, подробнее можете узнать [тут](https://github.com/cacggghp/vk-turn-proxy?tab=readme-ov-file#windows).
+> Примечание: данные команды также должны подойти и для клиента на пк, подробнее можете узнать [тут](https://github.com/cacggghp/vk-turn-proxy?tab=readme-ov-file#windows).
+> 
+> Примечание 2: ссылки для звонков лучше ищите в поисковике, просто вбивайте "https://vk.com/call/join/" или "https://telemost.yandex.ru/j/" (с кавычками) или используйте твинки для их создания.
 
 **В приложении с sing-box/xray ядром:**
 
