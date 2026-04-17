@@ -137,6 +137,33 @@ fi
 while true; do
     clear
     
+    # Определяем, какому VPN принадлежит целевой порт
+    TARGET_SERVICE="Введен вручную / Неизвестен"
+    shopt -s nullglob
+    
+    # 1. Проверяем Hysteria2
+    for conf in /etc/hysteria/*.yaml /etc/hysteria/*.json; do
+        port=$(grep -i -oP -m 1 '^listen:\s*(?:.*:)?\K\d+' "$conf" 2>/dev/null)
+        if [[ "$port" == "$TARGET_PORT" ]]; then TARGET_SERVICE="Hysteria2"; break; fi
+    done
+    
+    # 2. Проверяем AmneziaWG
+    if [[ "$TARGET_SERVICE" == "Введен вручную / Неизвестен" ]]; then
+        for conf in /etc/amneziawg/*.conf /etc/amnezia/amneziawg/*.conf; do
+            port=$(grep -oP -m 1 'ListenPort\s*=\s*\K\d+' "$conf" 2>/dev/null)
+            if [[ "$port" == "$TARGET_PORT" ]]; then TARGET_SERVICE="AmneziaWG"; break; fi
+        done
+    fi
+    
+    # 3. Проверяем WireGuard
+    if [[ "$TARGET_SERVICE" == "Введен вручную / Неизвестен" ]]; then
+        for conf in /etc/wireguard/*.conf; do
+            port=$(grep -oP -m 1 'ListenPort\s*=\s*\K\d+' "$conf" 2>/dev/null)
+            if [[ "$port" == "$TARGET_PORT" ]]; then TARGET_SERVICE="WireGuard"; break; fi
+        done
+    fi
+    shopt -u nullglob
+
     # Статус службы
     if systemctl is-active --quiet vk-proxy; then 
         PROXY_STATE="${GREEN}Активен${NC}"
@@ -165,14 +192,17 @@ while true; do
         MODE_TEXT="${GREEN}Автоматический${NC}"
     fi
 
-    echo "========================================================="
-    echo -e "${CYAN}               VK TURN Proxy Manager v1.7              ${NC}"
-    echo "========================================================="
-    echo -e "Статус:  ${PROXY_STATE}          | VLESS: ${VLESS_TEXT}"
-    echo -e "Версия:  ${YELLOW}${CURRENT_VERSION}${NC}           | Ядро:  ${CYAN}${PROXY_REPO}${NC}"
-    echo -e "Режим:   ${MODE_TEXT} | DataChannel: ${DC_TEXT}"
-    echo -e "Внешний: ${PUBLIC_IP}:${PROXY_PORT} | Назначение: 127.0.0.1:${TARGET_PORT}"
-    echo "========================================================="
+	echo "========================================================================="
+    echo -e "${CYAN}                       VK TURN Proxy Manager v1.8                        ${NC}"
+    echo "========================================================================="
+    echo -e " 🟢 Статус:      ${PROXY_STATE}"
+    echo -e " 📦 Версия:      ${YELLOW}${CURRENT_VERSION}${NC} (Ядро: ${CYAN}${PROXY_REPO}${NC})"
+    echo -e " ⚙️  Режим:       ${MODE_TEXT}"
+    echo -e " 🛡️  VLESS:       ${VLESS_TEXT}  |  📞 DataChannel: ${DC_TEXT}"
+    echo "-------------------------------------------------------------------------"
+    echo -e " 🌐 Внешний:     ${PUBLIC_IP}:${PROXY_PORT}"
+    echo -e " 🎯 Назначение:  127.0.0.1:${TARGET_PORT} [${YELLOW}${TARGET_SERVICE}${NC}]"
+    echo "========================================================================="
     echo -e "${YELLOW}--- Управление Proxy ---${NC}"
     echo "  1. 🟢 Запустить прокси"
     echo "  2. 🔴 Остановить прокси"
@@ -188,14 +218,14 @@ while true; do
     echo " 10. ✍️ Задать кастомные аргументы запуска (Raw command)"
     echo ""
     echo -e "${YELLOW}--- VPN и Клиенты ---${NC}"
-    echo " 11. ➕ Установка/Управление VPN (WG / AmneziaWG)"
+    echo " 11. ➕ Установка/Управление VPN (WG / AmneziaWG / Hysteria2)"
     echo " 12. 📱 Показать QR-код существующего клиента"
     echo ""
     echo -e "${YELLOW}--- Система ---${NC}"
     echo " 13. 📊 Посмотреть логи"
     echo " 14. ⚙️ Обновить панель"
     echo "  0. ❌ Выйти"
-    echo "========================================================="
+    echo "========================================================================="
     read -p "Выбери действие: " choice
 
     API_URL="https://api.github.com/repos/${PROXY_REPO}/releases/latest"
@@ -347,7 +377,7 @@ EOF_SVC
             read -n 1 -s -r -p "Нажми любую клавишу..."
             ;;
         6)
-            echo -e "${RED}ВНИМАНИЕ: Это удалит службу и бинарник прокси! Остальные VPN (WG, AmneziaWG, Xray, Hysteria) останутся нетронутыми.${NC}"
+            echo -e "${RED}ВНИМАНИЕ: Это удалит службу и бинарник прокси! Остальные VPN (WG, AmneziaWG, Hysteria2) останутся нетронутыми.${NC}"
             read -p "Вы АБСОЛЮТНО уверены? [y/N]: " confirm
             if [[ "$confirm" =~ ^[Yy]$ ]]; then
                 systemctl stop vk-proxy; systemctl disable vk-proxy; rm -f /etc/systemd/system/vk-proxy.service; systemctl daemon-reload
@@ -394,13 +424,13 @@ EOF_SVC
                 echo ""
                 echo "Как задать новый локальный порт?"
                 echo "1) Ввести вручную"
-                echo "2) Найти автоматически в установленных конфигурациях VPN (WG/AWG)"
+                echo "2) Найти автоматически в установленных конфигурациях VPN (WG/AWG/Hysteria2)"
                 read -p "Твой выбор: " target_port_method
 
                 NEW_TARGET_PORT=""
 
                 if [[ "$target_port_method" == "1" ]]; then
-                    read -p "Введи новый локальный порт (например, 51820): " input_target_port
+                    read -p "Введи новый локальный порт (например, 51820 или 443): " input_target_port
                     if [[ "$input_target_port" =~ ^[0-9]+$ ]] && [ "$input_target_port" -ge 1 ] && [ "$input_target_port" -le 65535 ]; then
                         NEW_TARGET_PORT="$input_target_port"
                     else
@@ -408,23 +438,23 @@ EOF_SVC
                     fi
                 elif [[ "$target_port_method" == "2" ]]; then
                     shopt -s nullglob
-                    ALL_CONFS=(/etc/wireguard/*.conf /etc/amneziawg/*.conf /etc/amnezia/amneziawg/*.conf)
+                    ALL_CONFS=(/etc/wireguard/*.conf /etc/amneziawg/*.conf /etc/amnezia/amneziawg/*.conf /etc/hysteria/*.yaml /etc/hysteria/*.json)
                     shopt -u nullglob
 
                     if [ ${#ALL_CONFS[@]} -eq 0 ]; then
-                        echo -e "${RED}Файлы конфигураций WG/AWG не найдены на сервере.${NC}"
+                        echo -e "${RED}Файлы конфигураций VPN не найдены на сервере.${NC}"
                     else
                         echo -e "${YELLOW}Найдены следующие конфигурации:${NC}"
                         for i in "${!ALL_CONFS[@]}"; do
-                            port=$(grep -oP 'ListenPort\s*=\s*\K\d+' "${ALL_CONFS[$i]}")
+                            port=$(grep -i -oP -m 1 '(ListenPort\s*=\s*|^listen:\s*(?:.*:)?)\K\d+' "${ALL_CONFS[$i]}")
                             echo "$((i+1)). ${ALL_CONFS[$i]} (Найденный порт: ${port:-не обнаружен})"
                         done
                         echo ""
                         read -p "Выбери номер конфигурации для привязки: " conf_choice
                         if [[ "$conf_choice" -ge 1 && "$conf_choice" -le ${#ALL_CONFS[@]} ]]; then
-                            NEW_TARGET_PORT=$(grep -oP 'ListenPort\s*=\s*\K\d+' "${ALL_CONFS[$((conf_choice-1))]}")
+                            NEW_TARGET_PORT=$(grep -i -oP -m 1 '(ListenPort\s*=\s*|^listen:\s*(?:.*:)?)\K\d+' "${ALL_CONFS[$((conf_choice-1))]}")
                             if [[ -z "$NEW_TARGET_PORT" ]]; then
-                                echo -e "${RED}В выбранном файле не найдена строка ListenPort.${NC}"
+                                echo -e "${RED}В выбранном файле не найден порт.${NC}"
                             fi
                         else
                             echo -e "${RED}Неверный выбор.${NC}"
@@ -628,24 +658,32 @@ EOF_SVC
             echo -e "${CYAN}Управление и установка VPN:${NC}"
             echo "1) WireGuard"
             echo "2) AmneziaWG"
+            echo "3) Hysteria2"
             read -p "Выбери вариант: " vpn_manage_choice
-            if [[ "$vpn_manage_choice" == "1" || "$vpn_manage_choice" == "2" ]]; then
+            if [[ "$vpn_manage_choice" == "1" || "$vpn_manage_choice" == "2" || "$vpn_manage_choice" == "3" ]]; then
                 read -p "Вы точно хотите установить/управлять этим VPN? [y/N]: " confirm_vpn
                 if [[ "$confirm_vpn" =~ ^[Yy]$ ]]; then
                     if [[ "$vpn_manage_choice" == "1" ]]; then
                         if [ ! -f /root/wireguard-install.sh ]; then
                             echo -e "${YELLOW}Установщик WireGuard не найден. Скачивание...${NC}"
-                            curl -sLo /root/wireguard-install.sh https://raw.githubusercontent.com/angristan/wireguard-install/master/wireguard-install.sh
+                            curl -sfLo /root/wireguard-install.sh https://raw.githubusercontent.com/angristan/wireguard-install/master/wireguard-install.sh
                             chmod +x /root/wireguard-install.sh
                         fi
                         bash /root/wireguard-install.sh
                     elif [[ "$vpn_manage_choice" == "2" ]]; then
                         if [ ! -f /root/amneziawg-install.sh ]; then
                             echo -e "${YELLOW}Установщик AmneziaWG не найден. Скачивание...${NC}"
-                            curl -sLo /root/amneziawg-install.sh https://raw.githubusercontent.com/wiresock/amneziawg-install/main/amneziawg-install.sh
+                            curl -sfLo /root/amneziawg-install.sh https://raw.githubusercontent.com/wiresock/amneziawg-install/main/amneziawg-install.sh
                             chmod +x /root/amneziawg-install.sh
                         fi
                         bash /root/amneziawg-install.sh
+                    elif [[ "$vpn_manage_choice" == "3" ]]; then
+                        if [ ! -f /root/hysteria-install.sh ]; then
+                            echo -e "${YELLOW}Установщик Hysteria2 не найден. Скачивание...${NC}"
+                            curl -sfLo /root/hysteria-install.sh https://raw.githubusercontent.com/NedgNDG/hysteria2-install/main/hysteria-install.sh
+                            chmod +x /root/hysteria-install.sh
+                        fi
+                        bash /root/hysteria-install.sh
                     fi
                 else
                     echo -e "${YELLOW}Действие отменено.${NC}"
@@ -683,7 +721,7 @@ EOF_SVC
         13) journalctl -u vk-proxy -n 20 --no-pager; read -n 1 -s -r -p "Нажми любую клавишу..." ;;
         14)
             echo -e "${YELLOW}Скачивание обновления панели...${NC}"
-            bash <(curl -sL --connect-timeout 10 "$INSTALLER_URL") --update-panel
+            bash <(curl -sfL --connect-timeout 10 "$INSTALLER_URL") --update-panel
             echo -e "${GREEN}Панель обновлена! Перезапустите команду vk-panel.${NC}"
             exit 0 ;;
         0) clear; exit 0 ;;
@@ -793,12 +831,13 @@ echo "[5/9] Настройка локального порта (цель для 
 echo "Куда прокси должен перенаправлять трафик?"
 echo "1) Установить WireGuard с нуля (автоматически установит и привяжет порт)"
 echo "2) Установить AmneziaWG с нуля (автоматически установит и привяжет порт)"
-echo "3) Ввести порт вручную (если WG/AWG, Hysteria2, Xray или 3X-UI уже установлены)"
-read -p "Твой выбор [1-3]: " port_setup_choice
+echo "3) Установить Hysteria2 с нуля (автоматически установит и привяжет порт)"
+echo "4) Ввести порт вручную (если WG/AWG, Hysteria2, Xray или 3X-UI уже установлены)"
+read -p "Твой выбор [1-4]: " port_setup_choice
 
 TARGET_PORT=""
 
-if [[ "$port_setup_choice" == "3" ]]; then
+if [[ "$port_setup_choice" == "4" ]]; then
     echo ""
     read -p "Введи локальный порт (например, 51820 для WG/AWG, 443 для Hysteria2/Xray/VLESS): " manual_port
     if [[ "$manual_port" =~ ^[0-9]+$ ]] && [ "$manual_port" -ge 1 ] && [ "$manual_port" -le 65535 ]; then
@@ -807,6 +846,59 @@ if [[ "$port_setup_choice" == "3" ]]; then
     else
         echo "Ошибка: введено некорректное значение порта. Используем стандартный порт: 51820"
         TARGET_PORT=51820
+    fi
+elif [[ "$port_setup_choice" == "3" ]]; then
+    echo ""
+    echo "[6/9] Установка и поиск порта Hysteria2..."
+    shopt -s nullglob
+    HYS_CONFS=(/etc/hysteria/*.yaml /etc/hysteria/*.json)
+    shopt -u nullglob
+
+    if [ ${#HYS_CONFS[@]} -gt 0 ]; then
+        echo "Найдены существующие конфигурации Hysteria2."
+        read -p "Хочешь запустить установщик Hysteria2? (выбери N, если Hysteria2 уже настроен) [y/N]: " run_hys
+        if [[ "$run_hys" =~ ^[Yy]$ ]]; then
+            if curl -sfLo /root/hysteria-install.sh https://raw.githubusercontent.com/NedgNDG/hysteria2-install/main/hysteria-install.sh; then
+                chmod +x /root/hysteria-install.sh
+                bash /root/hysteria-install.sh
+            else
+                echo "❌ Ошибка скачивания установщика Hysteria2."
+            fi
+            shopt -s nullglob
+            HYS_CONFS=(/etc/hysteria/*.yaml /etc/hysteria/*.json)
+            shopt -u nullglob
+        else
+            echo "Пропускаем установку Hysteria2..."
+        fi
+    else
+        if curl -sfLo /root/hysteria-install.sh https://raw.githubusercontent.com/NedgNDG/hysteria2-install/main/hysteria-install.sh; then
+            chmod +x /root/hysteria-install.sh
+            bash /root/hysteria-install.sh
+        else
+            echo "❌ Ошибка скачивания установщика Hysteria2."
+        fi
+        shopt -s nullglob
+        HYS_CONFS=(/etc/hysteria/*.yaml /etc/hysteria/*.json)
+        shopt -u nullglob
+    fi
+
+    if [ ${#HYS_CONFS[@]} -eq 1 ]; then
+        TARGET_PORT=$(grep -i -oP -m 1 '^listen:\s*(?:.*:)?\K\d+' "${HYS_CONFS[0]}")
+        echo "Автоматически выбран конфиг: ${HYS_CONFS[0]}"
+    elif [ ${#HYS_CONFS[@]} -gt 1 ]; then
+        echo "Найдено несколько конфигураций:"
+        for i in "${!HYS_CONFS[@]}"; do echo "$((i+1)). ${HYS_CONFS[$i]}"; done
+        read -p "Выбери номер конфига для привязки прокси: " conf_choice
+        conf_choice=${conf_choice:-1}
+        if [[ "$conf_choice" -ge 1 && "$conf_choice" -le ${#HYS_CONFS[@]} ]]; then
+            TARGET_PORT=$(grep -i -oP -m 1 '^listen:\s*(?:.*:)?\K\d+' "${HYS_CONFS[$((conf_choice-1))]}")
+        fi
+    fi
+
+    if [[ -z "$TARGET_PORT" ]]; then
+        read -p "Не удалось найти порт. Введи целевой порт вручную: " TARGET_PORT
+    else
+        echo "Порт определен: $TARGET_PORT"
     fi
 elif [[ "$port_setup_choice" == "2" ]]; then
     echo ""
@@ -819,7 +911,7 @@ elif [[ "$port_setup_choice" == "2" ]]; then
         echo "Найдены существующие конфигурации AmneziaWG."
         read -p "Хочешь запустить установщик AmneziaWG? (выбери N, если AWG уже настроен) [y/N]: " run_awg
         if [[ "$run_awg" =~ ^[Yy]$ ]]; then
-            if curl -sLo /root/amneziawg-install.sh https://raw.githubusercontent.com/wiresock/amneziawg-install/main/amneziawg-install.sh; then
+            if curl -sfLo /root/amneziawg-install.sh https://raw.githubusercontent.com/wiresock/amneziawg-install/main/amneziawg-install.sh; then
                 chmod +x /root/amneziawg-install.sh
                 bash /root/amneziawg-install.sh
             else
@@ -832,7 +924,7 @@ elif [[ "$port_setup_choice" == "2" ]]; then
             echo "Пропускаем установку AmneziaWG..."
         fi
     else
-        if curl -sLo /root/amneziawg-install.sh https://raw.githubusercontent.com/wiresock/amneziawg-install/main/amneziawg-install.sh; then
+        if curl -sfLo /root/amneziawg-install.sh https://raw.githubusercontent.com/wiresock/amneziawg-install/main/amneziawg-install.sh; then
             chmod +x /root/amneziawg-install.sh
             bash /root/amneziawg-install.sh
         else
@@ -872,7 +964,7 @@ else
         echo "Найдены существующие конфигурации WireGuard."
         read -p "Хочешь запустить установщик WireGuard? (выбери N, если WG уже настроен) [y/N]: " run_wg
         if [[ "$run_wg" =~ ^[Yy]$ ]]; then
-            if curl -sLo /root/wireguard-install.sh https://raw.githubusercontent.com/angristan/wireguard-install/master/wireguard-install.sh; then
+            if curl -sfLo /root/wireguard-install.sh https://raw.githubusercontent.com/angristan/wireguard-install/master/wireguard-install.sh; then
                 chmod +x /root/wireguard-install.sh
                 bash /root/wireguard-install.sh
             else
@@ -885,7 +977,7 @@ else
             echo "Пропускаем установку WireGuard..."
         fi
     else
-        if curl -sLo /root/wireguard-install.sh https://raw.githubusercontent.com/angristan/wireguard-install/master/wireguard-install.sh; then
+        if curl -sfLo /root/wireguard-install.sh https://raw.githubusercontent.com/angristan/wireguard-install/master/wireguard-install.sh; then
             chmod +x /root/wireguard-install.sh
             bash /root/wireguard-install.sh
         else
