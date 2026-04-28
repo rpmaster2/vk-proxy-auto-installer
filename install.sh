@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # === НАСТРОЙКИ ===
-INSTALLER_URL="https://raw.githubusercontent.com/NedgNDG/vk-proxy-auto-installer/main/install.sh"
+INSTALLER_URL="https://raw.githubusercontent.com/rpmaster2/vk-proxy-auto-installer/main/install.sh"
 
 if [ "$EUID" -ne 0 ]; then
   echo "Пожалуйста, запустите скрипт от имени root (команда: sudo bash)"
@@ -12,7 +12,7 @@ fi
 create_panel() {
 cat << 'EOF' > /usr/local/bin/vk-panel
 #!/bin/bash
-INSTALLER_URL="https://raw.githubusercontent.com/NedgNDG/vk-proxy-auto-installer/main/install.sh"
+INSTALLER_URL="https://raw.githubusercontent.com/rpmaster2/vk-proxy-auto-installer/main/install.sh"
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -304,8 +304,9 @@ EOF_SVC
             echo "3) Urtyom-Alyanov/turn-proxy (Ядро на Rust, только amd64/x86_64)"
             echo "4) Moroka8/vk-turn-proxy (Форк)"
             echo "5) alxmcp/vk-turn-proxy (Форк, поддержка Yandex / SaluteJazz)"
+			echo "6) samosvalishe/vk-turn-proxy (Форк)" 
             echo "0) Отмена"
-            read -p "Выберите новую реализацию [1-5 или 0]: " repo_choice
+            read -p "Выберите новую реализацию [1-6 или 0]: " repo_choice
             
             case "$repo_choice" in
                 1) NEW_REPO="cacggghp/vk-turn-proxy" ;;
@@ -313,6 +314,7 @@ EOF_SVC
                 3) NEW_REPO="Urtyom-Alyanov/turn-proxy" ;;
                 4) NEW_REPO="Moroka8/vk-turn-proxy" ;;
                 5) NEW_REPO="alxmcp/vk-turn-proxy" ;;
+				6) NEW_REPO="samosvalishe/vk-turn-proxy" ;;
                 0) continue ;;
                 *) echo -e "${RED}Неверный выбор.${NC}"; sleep 1; continue ;;
             esac
@@ -772,13 +774,15 @@ echo -e "2) kiper292/vk-turn-proxy (Форк, \e[9mподдержка WB Stream\
 echo "3) Urtyom-Alyanov/turn-proxy (Ядро на Rust, только amd64/x86_64)"
 echo "4) Moroka8/vk-turn-proxy (Форк)"
 echo "5) alxmcp/vk-turn-proxy (Форк, поддержка DataChannel SaluteJazz / Yandex)"
-read -p "Твой выбор [1-5]: " repo_choice
+echo "6) samosvalishe/vk-turn-proxy (Форк)"
+read -p "Твой выбор [1-6]: " repo_choice
 
 case "$repo_choice" in
   2) PROXY_REPO="kiper292/vk-turn-proxy" ;;
   3) PROXY_REPO="Urtyom-Alyanov/turn-proxy" ;;
   4) PROXY_REPO="Moroka8/vk-turn-proxy" ;;
   5) PROXY_REPO="alxmcp/vk-turn-proxy" ;;
+  6) PROXY_REPO="samosvalishe/vk-turn-proxy" ;;
   *) PROXY_REPO="cacggghp/vk-turn-proxy" ;;
 esac
 
